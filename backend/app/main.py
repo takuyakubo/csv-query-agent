@@ -1,19 +1,19 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+import asyncio
+import io
+import json
+import uuid
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+
+import pandas as pd
+import redis
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import pandas as pd
-import io
-import uuid
-from typing import Optional
-from datetime import datetime, timedelta
-import redis
-import json
-import asyncio
-from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.models import QueryRequest, QueryResponse, SessionInfo
-from agents.csv_agent import CSVAgent
+from csv_agents.csv_agent import CSVAgent
 
 
 # Redis client
@@ -108,7 +108,7 @@ async def upload_csv(file: UploadFile = File(...)):
 
 
 @app.post("/query")
-async def query_csv(request: QueryRequest):
+def query_csv(request: QueryRequest):
     # セッションデータを取得
     session_data = redis_client.get(f"session:{request.session_id}")
     if not session_data:
@@ -124,13 +124,19 @@ async def query_csv(request: QueryRequest):
         agent = CSVAgent(df, session_info["filename"])
         
         # クエリを実行
-        result = await agent.process_query(request.query)
+        result = asyncio.run(agent.process_query(request.query))
+        
+        # ResponseCSVAgentオブジェクトから必要な情報を抽出
+        visualization_data = None
+        if result.visualization_data:
+            # 可視化データがある場合はJSON形式で返す
+            visualization_data = result.visualization_data.model_dump_json()
         
         return QueryResponse(
             success=True,
-            result=result.get("result"),
-            visualization=result.get("visualization"),
-            data=result.get("data"),
+            result=result.result,
+            visualization=visualization_data,
+            data=None,
             query=request.query
         )
         

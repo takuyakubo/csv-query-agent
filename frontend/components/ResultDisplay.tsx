@@ -41,11 +41,30 @@ export function ResultDisplay({ results }: ResultDisplayProps) {
                 )}
                 {result.visualization && (
                   <div className="mt-4">
-                    <img
-                      src={result.visualization}
-                      alt="Visualization"
-                      className="max-w-full h-auto rounded-lg shadow-md"
-                    />
+                    <div className="text-sm text-muted-foreground mb-2">
+                      画像データ長: {result.visualization.length}文字
+                    </div>
+                    <div className="text-xs text-muted-foreground mb-2 break-all">
+                      開始: {result.visualization.substring(0, 100)}...
+                    </div>
+                    {result.visualization.startsWith('data:image/png;base64,') ? (
+                      <img
+                        src={result.visualization}
+                        alt="Visualization"
+                        className="max-w-full h-auto rounded-lg shadow-md"
+                        onError={(e) => {
+                          console.error('Image load error:', e)
+                          console.log('Full image src length:', result.visualization?.length)
+                          console.log('Image src start:', result.visualization?.substring(0, 200))
+                        }}
+                        onLoad={() => console.log('Image loaded successfully')}
+                      />
+                    ) : (
+                      <div className="bg-yellow-100 p-4 rounded-lg">
+                        <p className="text-sm">画像データの形式が正しくありません</p>
+                        <p className="text-xs break-all">{result.visualization}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
