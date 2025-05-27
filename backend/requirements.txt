@@ -2,8 +2,8 @@ fastapi==0.115.5
 uvicorn[standard]==0.34.0
 python-multipart==0.0.18
 pandas==2.2.3
-openai==1.59.5
-git+https://github.com/openai/swarm.git
+openai==1.82.0
+openai-agents==0.0.16
 redis==5.2.1
 python-dotenv==1.0.1
 pydantic==2.10.5
