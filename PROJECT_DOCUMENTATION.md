@@ -26,8 +26,9 @@ CSV Query Agentは、アップロードされたCSVファイルに対して自�
 #### バックエンド
 - **Python 3.11+**
 - **FastAPI** (Webフレームワーク)
-- **OpenAI Agent SDK** (AI処理)
+- **OpenAI Agent SDK** (AI処理 - 旧Swarmから移行)
 - **Pandas** (データ処理)
+- **Gradio** (バックエンドUI)
 - **Uvicorn** (ASGIサーバー)
 
 ### アーキテクチャ図
@@ -56,7 +57,7 @@ CSV Query Agentは、アップロードされたCSVファイルに対して自�
 
 #### 1. ファイルアップロード
 ```
-POST /api/upload
+POST /upload
 Content-Type: multipart/form-data
 
 Request:
@@ -65,16 +66,16 @@ Request:
 Response:
 {
   "session_id": "uuid",
-  "file_name": "data.csv",
+  "filename": "data.csv",
   "columns": ["col1", "col2", ...],
-  "row_count": 1000,
-  "preview": [...] // 最初の5行
+  "rows": 1000,
+  "columns_count": 5
 }
 ```
 
 #### 2. クエリ実行
 ```
-POST /api/query
+POST /query
 Content-Type: application/json
 
 Request:
@@ -85,30 +86,34 @@ Request:
 
 Response:
 {
-  "answer": "最も売上が高いのは12月で、売上額は¥1,234,567です。",
-  "data": {...},
-  "visualization": {
-    "type": "bar_chart",
-    "data": {...}
-  },
-  "sql_query": "SELECT month, SUM(sales) FROM data GROUP BY month ORDER BY SUM(sales) DESC LIMIT 1"
+  "success": true,
+  "result": "最も売上が高いのは12月で、売上額は¥1,234,567です。",
+  "visualization": "{\"visualization_type\": \"bar_chart\", \"data_for_graph\": {...}}",
+  "data": null,
+  "query": "売上が最も高い月は？"
 }
 ```
 
-#### 3. セッション履歴
+#### 3. セッション情報取得
 ```
-GET /api/sessions/{session_id}/history
+GET /session/{session_id}
 
 Response:
 {
-  "queries": [
-    {
-      "id": "query_id",
-      "query": "...",
-      "answer": "...",
-      "timestamp": "2024-01-01T00:00:00Z"
-    }
-  ]
+  "filename": "data.csv",
+  "columns": ["col1", "col2", ...],
+  "shape": [1000, 5],
+  "created_at": "2024-01-01T00:00:00"
+}
+```
+
+#### 4. セッション削除
+```
+DELETE /session/{session_id}
+
+Response:
+{
+  "message": "Session deleted successfully"
 }
 ```
 
@@ -120,21 +125,21 @@ frontend/
 ├── app/
 │   ├── layout.tsx
 │   ├── page.tsx
-│   ├── api/
-│   │   └── [...route handlers]
-│   └── components/
-│       ├── FileUploader.tsx
-│       ├── QueryInput.tsx
-│       ├── ResultDisplay.tsx
-│       └── VisualizationChart.tsx
+│   └── globals.css
+├── components/
+│   ├── FileUpload.tsx
+│   ├── QueryInterface.tsx
+│   ├── ResultDisplay.tsx
+│   └── ui/
+│       ├── button.tsx
+│       ├── card.tsx
+│       ├── input.tsx
+│       └── textarea.tsx
 ├── lib/
-│   ├── api-client.ts
 │   └── utils.ts
 ├── hooks/
-│   ├── useQuery.ts
-│   └── useFileUpload.ts
-└── types/
-    └── index.ts
+│   └── useApi.ts
+└── types/ (型定義は各コンポーネント内に含まれる)
 ```
 
 ### 主要コンポーネント
@@ -160,56 +165,55 @@ interface QueryInputProps {
 ```
 backend/
 ├── app/
+│   ├── __init__.py
 │   ├── main.py
-│   ├── api/
-│   │   ├── __init__.py
-│   │   ├── upload.py
-│   │   ├── query.py
-│   │   └── session.py
-│   ├── agents/
-│   │   ├── __init__.py
-│   │   ├── csv_agent.py
-│   │   └── tools.py
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── schemas.py
-│   └── services/
-│       ├── __init__.py
-│       ├── file_service.py
-│       └── session_service.py
+│   ├── config.py
+│   └── models.py
+├── csv_agents/
+│   ├── __init__.py
+│   └── csv_agent.py
+├── services/
+│   └── __init__.py
+├── gradio_app.py
+├── test_csv_agent.py
 ├── requirements.txt
-└── config.py
+├── Dockerfile
+└── REFACTORING_SUMMARY.md
 ```
 
 ### OpenAI Agent実装
 
 ```python
 from openai import OpenAI
-from swarm import Swarm, Agent
+from openai.beta import Assistant
+from openai.beta.agent import Agent
 
 class CSVQueryAgent:
     def __init__(self, csv_path: str):
-        self.client = Swarm()
+        self.client = OpenAI()
         self.df = pd.read_csv(csv_path)
         self.agent = self._create_agent()
     
     def _create_agent(self):
-        return Agent(
+        return self.client.beta.agents.create(
             name="CSV分析エージェント",
             instructions=self._get_instructions(),
-            functions=[
-                self.analyze_data,
-                self.create_visualization,
-                self.execute_query
-            ]
+            tools=[
+                {"type": "function", "function": {"name": "analyze_data", ...}},
+                {"type": "function", "function": {"name": "create_visualization", ...}},
+                {"type": "function", "function": {"name": "execute_query", ...}}
+            ],
+            model="gpt-4o"
         )
     
     def process_query(self, query: str):
-        response = self.client.run(
-            agent=self.agent,
-            messages=[{"role": "user", "content": query}]
+        # OpenAI Agent SDKの新しいAPI使用
+        run = self.client.beta.threads.create_and_run_stream(
+            assistant_id=self.agent.id,
+            thread={"messages": [{"role": "user", "content": query}]},
+            output_type=ResponseCSVAgent
         )
-        return response
+        return run.response()
 ```
 
 ## セットアップガイド

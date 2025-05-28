@@ -6,7 +6,7 @@ CSVファイルに対して自然言語でクエリを実行できるWebアプ�
 ## 技術スタック
 - **Frontend**: Next.js 14+ (App Router), TypeScript, Tailwind CSS, Shadcn/ui
 - **Backend**: Python 3.11+, FastAPI, OpenAI Agent SDK, Pandas
-- **AI**: OpenAI GPT-4, Swarm Agent Framework
+- **AI**: OpenAI GPT-4o, OpenAI Agent SDK (旧Swarmから移行)
 
 ## ディレクトリ構造
 ```
@@ -18,8 +18,9 @@ csv_query_agent/
 │   └── hooks/        # カスタムフック
 ├── backend/          # Pythonバックエンド
 │   ├── app/          # FastAPIアプリケーション
-│   ├── agents/       # OpenAI Agent実装
-│   └── services/     # ビジネスロジック
+│   ├── csv_agents/   # OpenAI Agent実装
+│   ├── services/     # ビジネスロジック
+│   └── gradio_app.py # Gradio UI
 └── PROJECT_DOCUMENTATION.md  # 詳細ドキュメント
 ```
 
@@ -49,9 +50,10 @@ csv_query_agent/
    - Pandasでのメモリ効率的な処理
 
 2. **OpenAI Agent実装**
-   - Swarm frameworkを使用
+   - OpenAI Agent SDKを使用 (旧Swarmから移行)
    - ツール: analyze_data, create_visualization, execute_query
    - セッション管理必須
+   - output_type=ResponseCSVAgentで型安全なレスポンス
 
 3. **API設計**
    - RESTful原則に従う
@@ -112,5 +114,5 @@ docker-compose up -d
 ### 参考リンク
 - [Next.js App Router Docs](https://nextjs.org/docs/app)
 - [FastAPI Docs](https://fastapi.tiangolo.com/)
-- [OpenAI Swarm](https://github.com/openai/swarm)
+- [OpenAI Agent SDK Docs](https://platform.openai.com/docs/assistants/overview)
 - [Pandas Best Practices](https://pandas.pydata.org/docs/user_guide/best_practices.html)
